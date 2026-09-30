@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Регистрация — Учёт компьютерной техники</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <span class="icon">🖥</span>
+            <span class="auth-title">Учёт компьютерной техники</span>
+        </div>
+
+        <div class="auth-error" id="auth-error">Пользователь с таким логином уже существует</div>
+
+        <form id="register-form" class="auth-form">
+            <label>Логин<input type="text" name="login" required minlength="3" maxlength="50" autocomplete="username"></label>
+            <label>Пароль<input type="password" name="password" required minlength="6" autocomplete="new-password"></label>
+            <label>Повторите пароль<input type="password" name="password_confirm" required minlength="6" autocomplete="new-password"></label>
+            <button type="submit" class="auth-submit">Зарегистрироваться</button>
+        </form>
+
+        <div class="auth-switch">
+            Уже есть аккаунт? <a href="login.html">Войти</a>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+<script>
+document.getElementById("register-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const errorBox = document.getElementById("auth-error");
+    errorBox.classList.remove("show");
+
+    if (form.password.value !== form.password_confirm.value) {
+        errorBox.textContent = "Пароли не совпадают";
+        errorBox.classList.add("show");
+        return;
+    }
+
+    try {
+        const response = await fetch("/auth/register", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ login: form.login.value, password: form.password.value }),
+        });
+
+        if (!response.ok) {
+            const data = await response.json().catch(() => ({}));
+            errorBox.textContent = data.detail || "Не удалось зарегистрироваться";
+            errorBox.classList.add("show");
+            return;
+        }
+
+        window.location.href = "login.html";
+    } catch (err) {
+        errorBox.textContent = "Не удалось связаться с сервером";
+        errorBox.classList.add("show");
+    }
+});
+</script>
+</body>
+</html>

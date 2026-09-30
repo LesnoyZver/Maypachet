@@ -1,0 +1,416 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Учёт компьютерной техники</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="page-header">
+    <div class="logo-block">
+        <span class="icon">🖥</span>
+        <span class="app-title">Учёт компьютерной техники</span>
+    </div>
+    <div class="account-block" id="account-trigger">
+        <div class="avatar" id="account-avatar">АД</div>
+        <span id="account-name">Администратор</span>
+        <div class="account-menu" id="account-menu">
+            <div class="actions-menu-item" data-action="settings">Настройки</div>
+            <div class="actions-menu-item danger" data-action="logout">Выйти из аккаунта</div>
+        </div>
+    </div>
+</div>
+
+<div class="toolbar">
+    <input type="number" id="filter-id" placeholder="Инв. №" class="toolbar-input toolbar-input-small">
+    <input type="text" id="filter-name" placeholder="Название" class="toolbar-input">
+    <input type="text" id="filter-serial" placeholder="Серийный номер" class="toolbar-input">
+    <select id="filter-type" class="toolbar-select">
+        <option value="">Тип: все</option>
+    </select>
+    <select id="filter-status" class="toolbar-select">
+        <option value="">Статус: все</option>
+        <option value="Исправно">исправно</option>
+        <option value="Требует ремонта">требует ремонта</option>
+        <option value="Списано">списано</option>
+    </select>
+    <select id="sort-field" class="toolbar-select">
+        <option value="date">Сортировка: дата</option>
+        <option value="id">Сортировка: инв. №</option>
+    </select>
+    <select id="sort-order" class="toolbar-select">
+        <option value="asc">по возрастанию</option>
+        <option value="desc">по убыванию</option>
+    </select>
+    <button type="button" id="reset-filters" class="btn">Сбросить</button>
+    <div class="toolbar-spacer"></div>
+    <button id="open-add-modal" class="btn btn-primary"><span>+</span> Добавить технику</button>
+</div>
+
+<table class="equipment-table">
+    <thead>
+        <tr>
+            <th>Инв. номер</th><th>Название</th><th>Серийный номер</th>
+            <th>Тип</th><th>Статус</th><th>Дата</th><th></th>
+        </tr>
+    </thead>
+    <tbody id="equipment-table-body">
+    </tbody>
+</table>
+
+<datalist id="type-options"></datalist>
+
+<div class="modal-overlay" id="add-modal">
+    <div class="modal">
+        <div class="modal-header"><span>Добавить технику</span><button class="modal-close" data-close="add-modal">×</button></div>
+        <form id="add-form" class="modal-body">
+            <label>Название<input type="text" name="name" required></label>
+            <label>Серийный номер<input type="text" name="serial_number" required></label>
+            <label>Тип<input type="text" name="type_name" list="type-options" required placeholder="Начните вводить или выберите"></label>
+            <label>Дата<input type="date" name="date" required></label>
+            <div class="modal-footer"><button type="button" class="btn" data-close="add-modal">Отмена</button><button type="submit" class="btn btn-primary">Добавить</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="edit-modal">
+    <div class="modal">
+        <div class="modal-header"><span>Изменить технику</span><button class="modal-close" data-close="edit-modal">×</button></div>
+        <form id="edit-form" class="modal-body">
+            <input type="hidden" name="inv_number">
+            <label>Название<input type="text" name="name" required></label>
+            <label>Серийный номер<input type="text" name="serial_number" required></label>
+            <label>Тип<input type="text" name="type_name" list="type-options" required placeholder="Начните вводить или выберите"></label>
+            <label>Статус
+                <select name="status" required>
+                    <option value="Исправно">исправно</option>
+                    <option value="Требует ремонта">требует ремонта</option>
+                    <option value="Списано">списано</option>
+                </select>
+            </label>
+            <label>Дата<input type="date" name="date" required></label>
+            <div class="modal-footer"><button type="button" class="btn" data-close="edit-modal">Отмена</button><button type="submit" class="btn btn-primary">Сохранить</button></div>
+        </form>
+    </div>
+</div>
+
+<div class="modal-overlay" id="write-off-modal">
+    <div class="modal modal-small">
+        <div class="modal-header"><span>Списать технику</span><button class="modal-close" data-close="write-off-modal">×</button></div>
+        <div class="modal-body">
+            <p id="write-off-text">Вы уверены, что хотите списать это устройство? Действие необратимо.</p>
+            <form id="write-off-form">
+                <input type="hidden" name="inv_number">
+                <div class="modal-footer"><button type="button" class="btn" data-close="write-off-modal">Отмена</button><button type="submit" class="btn btn-danger">Списать</button></div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+<script>
+const STATUS_META = {
+    "Исправно": { label: "исправно", cls: "status-active" },
+    "Требует ремонта": { label: "требует ремонта", cls: "status-repair" },
+    "Списано": { label: "списано", cls: "status-written_off" }
+};
+
+let equipmentById = {};
+
+document.addEventListener("DOMContentLoaded", () => {
+    initAccountName();
+    initActionsMenus();
+    initModals();
+    initToolbar();
+    loadEquipment().then(loadTypeOptions);
+});
+
+// ---------- Имя пользователя в шапке ----------
+
+function initAccountName() {
+    const login = sessionStorage.getItem("login");
+    if (!login) return; // пока login.html не сохраняет login — оставляем заглушку как было
+    document.getElementById("account-name").textContent = login;
+    document.getElementById("account-avatar").textContent = login.slice(0, 2).toUpperCase();
+}
+
+// ---------- Типы техники: сначала пробуем /equipment-types, если нет — берём из уже загруженной таблицы ----------
+
+async function loadTypeOptions() {
+    let types = [];
+    try {
+        const res = await fetch("/equipment-types", { credentials: "include" });
+        if (res.ok) {
+            const data = await res.json();
+            types = data.types || [];
+        } else {
+            throw new Error(`HTTP ${res.status}`);
+        }
+    } catch (err) {
+        console.warn("/equipment-types недоступен, беру типы из текущей таблицы:", err);
+        types = [...new Set(Object.values(equipmentById).map((e) => e.type_name))];
+    }
+
+    const datalist = document.getElementById("type-options");
+    datalist.innerHTML = "";
+    types.forEach((name) => {
+        const option = document.createElement("option");
+        option.value = name;
+        datalist.appendChild(option);
+    });
+
+    const filterSelect = document.getElementById("filter-type");
+    const current = filterSelect.value;
+    filterSelect.innerHTML = '<option value="">Тип: все</option>';
+    types.forEach((name) => {
+        const option = document.createElement("option");
+        option.value = name;
+        option.textContent = name;
+        filterSelect.appendChild(option);
+    });
+    filterSelect.value = current;
+}
+
+// ---------- Тулбар: фильтры и сортировка ----------
+
+function initToolbar() {
+    const textInputs = ["filter-id", "filter-name", "filter-serial"];
+    let debounceTimer;
+    const debouncedLoad = () => {
+        clearTimeout(debounceTimer);
+        debounceTimer = setTimeout(loadEquipment, 350);
+    };
+    textInputs.forEach((id) => document.getElementById(id).addEventListener("input", debouncedLoad));
+
+    ["filter-type", "filter-status", "sort-field", "sort-order"].forEach((id) => {
+        document.getElementById(id).addEventListener("change", loadEquipment);
+    });
+
+    document.getElementById("reset-filters").addEventListener("click", () => {
+        document.getElementById("filter-id").value = "";
+        document.getElementById("filter-name").value = "";
+        document.getElementById("filter-serial").value = "";
+        document.getElementById("filter-type").value = "";
+        document.getElementById("filter-status").value = "";
+        document.getElementById("sort-field").value = "date";
+        document.getElementById("sort-order").value = "asc";
+        loadEquipment();
+    });
+}
+
+function buildQueryParams() {
+    const params = new URLSearchParams();
+    const id = document.getElementById("filter-id").value.trim();
+    const name = document.getElementById("filter-name").value.trim();
+    const serial = document.getElementById("filter-serial").value.trim();
+    const type = document.getElementById("filter-type").value;
+    const status = document.getElementById("filter-status").value;
+
+    if (id) params.set("id", id);
+    if (name) params.set("name", name);
+    if (serial) params.set("serial_number", serial);
+    if (type) params.set("type_name", type);
+    if (status) params.set("status", status);
+    params.set("sort_by", document.getElementById("sort-field").value);
+    params.set("order", document.getElementById("sort-order").value);
+    return params;
+}
+
+// ---------- Загрузка и отрисовка списка техники ----------
+
+async function loadEquipment() {
+    try {
+        const res = await fetch(`/equipment?${buildQueryParams()}`, { credentials: "include" });
+        if (res.status === 401) { window.location.href = "login.html"; return; }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+        renderTable(data.equipment);
+    } catch (err) {
+        console.error("Не удалось загрузить список техники:", err);
+    }
+}
+
+function renderTable(items) {
+    equipmentById = {};
+    const tbody = document.getElementById("equipment-table-body");
+    tbody.innerHTML = "";
+
+    items.forEach((item) => {
+        equipmentById[item.id] = item;
+        const meta = STATUS_META[item.status] || { label: item.status, cls: "" };
+
+        const tr = document.createElement("tr");
+        tr.dataset.id = item.id;
+        tr.innerHTML = `
+            <td>${item.id ?? "—"}</td>
+            <td>${escapeHtml(item.name)}</td>
+            <td class="text-secondary">${escapeHtml(item.serial_number)}</td>
+            <td>${escapeHtml(item.type_name)}</td>
+            <td><span class="status-badge ${meta.cls}">${meta.label}</span></td>
+            <td class="text-secondary">${isoToDDMMYYYY(item.date)}</td>
+            <td class="actions-cell">
+                <button class="actions-trigger" data-id="${item.id}">⋯</button>
+                <div class="actions-menu" id="menu-${item.id}">
+                    <div class="actions-menu-item" data-action="edit" data-id="${item.id}">Изменить</div>
+                    <div class="actions-menu-item danger" data-action="write-off" data-id="${item.id}">Списать</div>
+                </div>
+            </td>`;
+        tbody.appendChild(tr);
+    });
+
+    if (items.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="7" class="text-secondary" style="text-align:center;">Ничего не найдено</td>`;
+        tbody.appendChild(tr);
+    }
+}
+
+function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+}
+
+function isoToDDMMYYYY(iso) {
+    const [y, m, d] = iso.split("-");
+    return `${d}.${m}.${y}`;
+}
+
+// ---------- Меню действий над строкой (⋯) ----------
+
+function initActionsMenus() {
+    const tbody = document.getElementById("equipment-table-body");
+    tbody.addEventListener("click", (e) => {
+        const trigger = e.target.closest(".actions-trigger");
+        if (trigger) {
+            e.stopPropagation();
+            const menu = document.getElementById(`menu-${trigger.dataset.id}`);
+            closeAllActionsMenus(menu);
+            menu.classList.toggle("open");
+            return;
+        }
+        const item = e.target.closest(".actions-menu-item");
+        if (item) {
+            e.stopPropagation();
+            closeAllActionsMenus();
+            if (item.dataset.action === "edit") openEditModal(item.dataset.id);
+            else if (item.dataset.action === "write-off") openWriteOffModal(item.dataset.id);
+        }
+    });
+    document.addEventListener("click", () => closeAllActionsMenus());
+}
+
+function closeAllActionsMenus(except) {
+    document.querySelectorAll(".actions-menu").forEach((menu) => { if (menu !== except) menu.classList.remove("open"); });
+}
+
+// ---------- Модалки: добавление, изменение, списание ----------
+
+function initModals() {
+    document.getElementById("open-add-modal").addEventListener("click", () => {
+        document.getElementById("add-form").date.valueAsDate = new Date();
+        openModal("add-modal");
+    });
+
+    document.getElementById("add-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const payload = {
+            name: form.name.value,
+            serial_number: form.serial_number.value,
+            type_name: form.type_name.value,
+            date: form.date.value
+        };
+        try {
+            const res = await fetch("/equipment/add", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            closeModal("add-modal");
+            form.reset();
+            await loadEquipment();
+            loadTypeOptions();
+        } catch (err) {
+            alert("Не удалось добавить технику");
+            console.error(err);
+        }
+    });
+
+    document.getElementById("edit-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const invNumber = form.inv_number.value;
+        const payload = {
+            name: form.name.value,
+            serial_number: form.serial_number.value,
+            type_name: form.type_name.value,
+            status: form.status.value,
+            date: form.date.value
+        };
+        try {
+            const res = await fetch(`/equipment/changes?inv_number=${encodeURIComponent(invNumber)}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            closeModal("edit-modal");
+            await loadEquipment();
+            loadTypeOptions();
+        } catch (err) {
+            alert("Не удалось сохранить изменения");
+            console.error(err);
+        }
+    });
+
+    document.getElementById("write-off-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const invNumber = form.inv_number.value;
+        try {
+            const res = await fetch(`/equipment/changes?inv_number=${encodeURIComponent(invNumber)}`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ status: "Списано" })
+            });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            closeModal("write-off-modal");
+            loadEquipment();
+        } catch (err) {
+            alert("Не удалось списать технику");
+            console.error(err);
+        }
+    });
+}
+
+function openEditModal(id) {
+    const item = equipmentById[id];
+    if (!item) return;
+    const form = document.getElementById("edit-form");
+
+    form.inv_number.value = item.id;
+    form.name.value = item.name;
+    form.serial_number.value = item.serial_number;
+    form.type_name.value = item.type_name;
+    form.status.value = item.status;
+    form.date.value = item.date;
+
+    openModal("edit-modal");
+}
+
+function openWriteOffModal(id) {
+    const item = equipmentById[id];
+    if (!item) return;
+    document.getElementById("write-off-text").textContent = `Вы уверены, что хотите списать «${item.name}»? Действие необратимо.`;
+    document.getElementById("write-off-form").inv_number.value = item.id;
+    openModal("write-off-modal");
+}
+</script>
+</body>
+</html>

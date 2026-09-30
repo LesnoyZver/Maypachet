@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Профиль — Учёт компьютерной техники</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="page-header">
+    <div class="logo-block">
+        <span class="icon">🖥</span>
+        <span class="app-title">Учёт компьютерной техники</span>
+    </div>
+    <div class="account-block" id="account-trigger">
+        <div class="avatar" id="account-avatar">АД</div>
+        <span id="profile-header-login">Администратор</span>
+        <div class="account-menu" id="account-menu">
+            <div class="actions-menu-item" data-action="settings">Настройки</div>
+            <div class="actions-menu-item danger" data-action="logout">Выйти из аккаунта</div>
+        </div>
+    </div>
+</div>
+
+<div class="profile-page">
+    <div class="profile-card">
+        <div class="profile-header">
+            <div class="profile-avatar" id="profile-avatar">АД</div>
+            <div>
+                <div class="profile-name" id="profile-login">—</div>
+                <div class="profile-sub">Личный кабинет</div>
+            </div>
+        </div>
+
+        <div class="profile-section-title">Смена пароля</div>
+        <div class="profile-actions">
+            <button class="btn" id="open-password-modal">Изменить пароль</button>
+        </div>
+
+        <div class="profile-section-title">Аккаунт</div>
+        <div class="profile-actions">
+            <button class="btn btn-danger" id="logout-btn">Выйти из аккаунта</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="password-modal">
+    <div class="modal">
+        <div class="modal-header"><span>Изменить пароль</span><button class="modal-close" data-close="password-modal">×</button></div>
+        <form id="password-form" class="modal-body">
+            <label>Текущий пароль<input type="password" name="current_password" required></label>
+            <label>Новый пароль<input type="password" name="new_password" required minlength="6"></label>
+            <div class="modal-footer">
+                <button type="button" class="btn" data-close="password-modal">Отмена</button>
+                <button type="submit" class="btn btn-primary">Сохранить</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script src="script.js"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+    const login = sessionStorage.getItem("login");
+    if (login) {
+        document.getElementById("profile-login").textContent = login;
+        document.getElementById("profile-header-login").textContent = login;
+        const initials = login.slice(0, 2).toUpperCase();
+        document.getElementById("profile-avatar").textContent = initials;
+        document.getElementById("account-avatar").textContent = initials;
+    }
+});
+
+document.getElementById("open-password-modal").addEventListener("click", () => openModal("password-modal"));
+
+document.getElementById("password-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const params = new URLSearchParams({
+        password: form.current_password.value,
+        new_password: form.new_password.value
+    });
+    try {
+        const res = await fetch(`/equipment/change_password?${params}`, {
+            method: "POST",
+            credentials: "include"
+        });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        alert("Пароль изменён");
+        closeModal("password-modal");
+        form.reset();
+    } catch (err) {
+        alert("Не удалось изменить пароль. Проверьте текущий пароль.");
+        console.error(err);
+    }
+});
+
+document.getElementById("logout-btn").addEventListener("click", async () => {
+    await fetch("/auth/logout", { method: "POST", credentials: "include" });
+    sessionStorage.removeItem("login");
+    window.location.href = "login.html";
+});
+</script>
+</body>
+</html>

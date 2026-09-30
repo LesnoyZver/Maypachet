@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Вход — Учёт компьютерной техники</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div class="auth-page">
+    <div class="auth-card">
+        <div class="auth-logo">
+            <span class="icon">🖥</span>
+            <span class="auth-title">Учёт компьютерной техники</span>
+        </div>
+
+        <div class="auth-error" id="auth-error">Неверный логин или пароль</div>
+
+        <form id="login-form" class="auth-form">
+            <label>Логин<input type="text" name="login" required autocomplete="username"></label>
+            <label>Пароль<input type="password" name="password" required autocomplete="current-password"></label>
+            <button type="submit" class="auth-submit">Войти</button>
+        </form>
+
+        <div class="auth-switch">
+            Нет аккаунта? <a href="register.html">Зарегистрироваться</a>
+        </div>
+    </div>
+</div>
+
+<script src="script.js"></script>
+<script>
+document.getElementById("login-form").addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    const errorBox = document.getElementById("auth-error");
+    errorBox.classList.remove("show");
+
+    try {
+        const response = await fetch("/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ login: form.login.value, password: form.password.value }),
+        });
+
+        if (!response.ok) {
+            errorBox.textContent = "Неверный логин или пароль";
+            errorBox.classList.add("show");
+            return;
+        }
+
+        sessionStorage.setItem("login", form.login.value);
+        window.location.href = "equipment.html";
+    } catch (err) {
+        errorBox.textContent = "Не удалось связаться с сервером";
+        errorBox.classList.add("show");
+    }
+});
+</script>
+</body>
+</html>
